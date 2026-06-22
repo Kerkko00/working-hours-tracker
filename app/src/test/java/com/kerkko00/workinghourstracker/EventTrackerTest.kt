@@ -1,4 +1,4 @@
-package com.example.workinghourstracker
+package com.kerkko00.workinghourstracker
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue

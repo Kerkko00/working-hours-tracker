@@ -1,4 +1,4 @@
-package com.example.workinghourstracker
+package com.kerkko00.workinghourstracker
 
 private const val defaultWeeklyThreshold = 37.5
 private const val defaultPastWeeksToCheck = 4

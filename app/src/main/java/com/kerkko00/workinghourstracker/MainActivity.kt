@@ -1,4 +1,4 @@
-package com.example.workinghourstracker
+package com.kerkko00.workinghourstracker
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -50,7 +50,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
-import com.example.workinghourstracker.ui.theme.WorkingHoursTrackerTheme
+import com.kerkko00.workinghourstracker.ui.theme.WorkingHoursTrackerTheme
 import com.google.gson.Gson
 import java.io.File
 import java.time.DayOfWeek

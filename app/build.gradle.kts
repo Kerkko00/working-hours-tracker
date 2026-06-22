@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.workinghourstracker"
+    namespace = "com.kerkko00.workinghourstracker"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.workinghourstracker"
+        applicationId = "com.kerkko00.workinghourstracker"
         minSdk = 28
         targetSdk = 36
         versionCode = 1

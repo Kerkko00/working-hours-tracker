@@ -1,4 +1,4 @@
-package com.example.workinghourstracker.ui.theme
+package com.kerkko00.workinghourstracker.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

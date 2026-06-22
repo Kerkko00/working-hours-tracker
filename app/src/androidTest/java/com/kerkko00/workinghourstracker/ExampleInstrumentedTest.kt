@@ -1,4 +1,4 @@
-package com.example.workinghourstracker
+package com.kerkko00.workinghourstracker
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

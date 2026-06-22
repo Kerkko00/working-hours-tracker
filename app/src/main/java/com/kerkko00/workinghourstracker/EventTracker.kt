@@ -1,4 +1,4 @@
-package com.example.workinghourstracker
+package com.kerkko00.workinghourstracker
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder

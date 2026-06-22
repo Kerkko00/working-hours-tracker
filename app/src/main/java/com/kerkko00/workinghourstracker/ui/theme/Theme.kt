@@ -1,4 +1,4 @@
-package com.example.workinghourstracker.ui.theme
+package com.kerkko00.workinghourstracker.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
