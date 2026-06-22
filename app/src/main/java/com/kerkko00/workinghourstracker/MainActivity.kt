@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -43,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -118,6 +120,7 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var hoursString by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
 
     val currentWeekMonday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
@@ -149,6 +152,19 @@ fun HomeScreen(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("Invalid Input") },
+            text = { Text("Given hours needs to be given in correct format and has to be higher than 0.0 but lower than 24.0.") },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     Column(
@@ -232,15 +248,24 @@ fun HomeScreen(
                 }
                 OutlinedTextField(
                     value = hoursString,
-                    onValueChange = { hoursString = it },
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
+                            hoursString = input
+                        }
+                    },
                     label = { Text("Hours") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
                 Button(
                     onClick = {
                         val hours = hoursString.toDoubleOrNull() ?: 0.0
-                        onAddEvent(selectedDate, hours)
-                        hoursString = ""
+                        if (hours > 24.0 || hours <= 0.0) {
+                            showErrorDialog = true
+                        } else {
+                            onAddEvent(selectedDate, hours)
+                            hoursString = ""
+                        }
                     },
                     modifier = Modifier
                         .align(Alignment.End)
@@ -290,7 +315,21 @@ fun EventItem(
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
     var editHoursString by remember { mutableStateOf(event.trackedHours.toString()) }
+
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("Invalid Input") },
+            text = { Text("Given hours needs to be given in correct format and has to be higher than 0.0 but lower than 24.0.") },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
 
     if (showEditDialog) {
         AlertDialog(
@@ -299,16 +338,25 @@ fun EventItem(
             text = {
                 OutlinedTextField(
                     value = editHoursString,
-                    onValueChange = { editHoursString = it },
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
+                            editHoursString = input
+                        }
+                    },
                     label = { Text("Hours") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     val hours = editHoursString.toDoubleOrNull() ?: event.trackedHours
-                    onEdit(hours)
-                    showEditDialog = false
+                    if (hours > 24.0 || hours <= 0.0) {
+                        showErrorDialog = true
+                    } else {
+                        onEdit(hours)
+                        showEditDialog = false
+                    }
                 }) {
                     Text("Save")
                 }
@@ -404,16 +452,26 @@ fun SettingsScreen(
             Column(modifier = Modifier.padding(16.dp)) {
                 OutlinedTextField(
                     value = weeklyHourLimitString,
-                    onValueChange = { weeklyHourLimitString = it },
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
+                            weeklyHourLimitString = input
+                        }
+                    },
                     label = { Text("Weekly hour limit (Alert is displayed when exceeded)") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
                 Spacer(Modifier.padding(vertical = 8.dp))
                 OutlinedTextField(
                     value = pastWeeksToCheckString,
-                    onValueChange = { pastWeeksToCheckString = it },
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.all { it.isDigit() }) {
+                            pastWeeksToCheckString = input
+                        }
+                    },
                     label = { Text("Number of past weeks to check for alerts") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Button(
                     onClick = {
