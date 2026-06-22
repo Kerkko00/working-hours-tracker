@@ -17,12 +17,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -96,6 +100,14 @@ fun WorkingHoursTrackerApp() {
                 onAddEvent = { date, hours ->
                     eventTracker.addEvent(date, hours)
                     refreshEvents()
+                },
+                onDeleteEvent = { date ->
+                    eventTracker.removeEvent(date)
+                    refreshEvents()
+                },
+                onEditEvent = { date, hours ->
+                    eventTracker.editEvent(date, hours)
+                    refreshEvents()
                 }
             )
             AppDestinations.SETTINGS -> SettingsScreen()
@@ -106,7 +118,9 @@ fun WorkingHoursTrackerApp() {
 @Composable
 fun HomeScreen(
     events: List<TrackedEvent>,
-    onAddEvent: (LocalDate, Double) -> Unit
+    onAddEvent: (LocalDate, Double) -> Unit,
+    onDeleteEvent: (LocalDate) -> Unit,
+    onEditEvent: (LocalDate, Double) -> Unit
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var hoursString by remember { mutableStateOf("") }
@@ -214,7 +228,11 @@ fun HomeScreen(
         } else {
             LazyColumn {
                 items(events) { event ->
-                    EventItem(event)
+                    EventItem(
+                        event = event,
+                        onDelete = { onDeleteEvent(event.date) },
+                        onEdit = { hours -> onEditEvent(event.date, hours) }
+                    )
                 }
             }
         }
@@ -222,7 +240,65 @@ fun HomeScreen(
 }
 
 @Composable
-fun EventItem(event: TrackedEvent) {
+fun EventItem(
+    event: TrackedEvent,
+    onDelete: () -> Unit,
+    onEdit: (Double) -> Unit
+) {
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var editHoursString by remember { mutableStateOf(event.trackedHours.toString()) }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Hours") },
+            text = {
+                OutlinedTextField(
+                    value = editHoursString,
+                    onValueChange = { editHoursString = it },
+                    label = { Text("Hours") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val hours = editHoursString.toDoubleOrNull() ?: event.trackedHours
+                    onEdit(hours)
+                    showEditDialog = false
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Confirm Delete") },
+            text = { Text("Are you sure you want to delete the entry for ${event.date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteDialog = false
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -246,8 +322,15 @@ fun EventItem(event: TrackedEvent) {
             }
             Text(
                 text = "${event.trackedHours} hrs",
-                style = MaterialTheme.typography.headlineSmall
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
+            IconButton(onClick = { showEditDialog = true }) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit")
+            }
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete")
+            }
         }
     }
 }
