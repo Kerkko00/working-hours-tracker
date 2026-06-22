@@ -64,13 +64,13 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WorkingHoursTrackerApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
-    val calendar = remember { Calendar() }
-    val events = remember { mutableStateListOf<CalendarEvent>() }
+    val eventTracker = remember { EventTracker() }
+    val events = remember { mutableStateListOf<TrackedEvent>() }
 
-    // Helper to refresh events from calendar
+    // Helper to refresh tracker events
     fun refreshEvents() {
         events.clear()
-        events.addAll(calendar.getEvents().sortedByDescending { it.date })
+        events.addAll(eventTracker.getEvents().sortedByDescending { it.date })
     }
 
     NavigationSuiteScaffold(
@@ -94,7 +94,7 @@ fun WorkingHoursTrackerApp() {
             AppDestinations.HOME -> HomeScreen(
                 events = events,
                 onAddEvent = { date, hours ->
-                    calendar.addEvent(date, hours)
+                    eventTracker.addEvent(date, hours)
                     refreshEvents()
                 }
             )
@@ -105,7 +105,7 @@ fun WorkingHoursTrackerApp() {
 
 @Composable
 fun HomeScreen(
-    events: List<CalendarEvent>,
+    events: List<TrackedEvent>,
     onAddEvent: (LocalDate, Double) -> Unit
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
@@ -222,7 +222,7 @@ fun HomeScreen(
 }
 
 @Composable
-fun EventItem(event: CalendarEvent) {
+fun EventItem(event: TrackedEvent) {
     Card(
         modifier = Modifier
             .fillMaxWidth()

@@ -3,17 +3,17 @@ package com.example.workinghourstracker
 import java.time.DayOfWeek
 import java.time.LocalDate
 
-data class CalendarEvent(
+data class TrackedEvent(
     val date: LocalDate,
     val weekDay: DayOfWeek,
     var trackedHours: Double
 )
 
-class Calendar {
-    private val events = mutableSetOf<CalendarEvent>()
+class EventTracker {
+    private val events = mutableSetOf<TrackedEvent>()
 
     fun addEvent(date: LocalDate, trackedHours: Double) {
-        events.add(CalendarEvent(date, date.dayOfWeek, trackedHours))
+        events.add(TrackedEvent(date, date.dayOfWeek, trackedHours))
     }
 
     fun editEvent(date: LocalDate, newTrackedHours: Double) {
@@ -29,7 +29,7 @@ class Calendar {
         events.removeIf { it.date == date }
     }
 
-    fun getEvents (): Set<CalendarEvent> {
+    fun getEvents (): Set<TrackedEvent> {
         return events
     }
 }
