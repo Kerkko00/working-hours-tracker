@@ -31,12 +31,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,14 +47,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import com.example.workinghourstracker.ui.theme.WorkingHoursTrackerTheme
+import com.google.gson.Gson
 import java.io.File
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,9 +77,13 @@ class MainActivity : ComponentActivity() {
 fun WorkingHoursTrackerApp() {
     val context = LocalContext.current
     val dataFile = remember { File(context.filesDir, "events.json") }
+    val settingsFile = remember { File(context.filesDir, "settings.json") }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     val eventTracker = remember { EventTracker() }
     val events = remember { mutableStateListOf<TrackedEvent>() }
+    var weeklyThreshold by remember { mutableDoubleStateOf(getDefaultWeeklyThreshold()) }
+    var pastWeeksToCheck by remember { mutableIntStateOf(getDefaultPastWeeksToCheck()) }
+    val gson = remember { Gson() }
 
     // Helper to refresh tracker events and save to file
     fun refreshEventsAndSave() {
@@ -84,9 +93,24 @@ fun WorkingHoursTrackerApp() {
     }
 
     LaunchedEffect(Unit) {
+        // Load events
         eventTracker.loadFromFile(dataFile)
         events.clear()
         events.addAll(eventTracker.getEvents().sortedByDescending { it.date })
+
+        // Load settings
+        if (settingsFile.exists()) {
+            val content = settingsFile.readText()
+            try {
+                val settings = gson.fromJson(content, AppSettings::class.java)
+                weeklyThreshold = settings.weeklyThreshold
+                pastWeeksToCheck = settings.pastWeeksToCheck
+            } catch (e: Exception) {
+                println("Error loading settings: $e")
+                weeklyThreshold = getDefaultWeeklyThreshold()
+                pastWeeksToCheck = getDefaultPastWeeksToCheck()
+            }
+        }
     }
 
     NavigationSuiteScaffold(
@@ -107,22 +131,40 @@ fun WorkingHoursTrackerApp() {
         }
     ) {
         when (currentDestination) {
-            AppDestinations.HOME -> HomeScreen(
-                events = events,
-                onAddEvent = { date, hours ->
-                    eventTracker.addEvent(date, hours)
-                    refreshEventsAndSave()
-                },
-                onDeleteEvent = { date ->
-                    eventTracker.removeEvent(date)
-                    refreshEventsAndSave()
-                },
-                onEditEvent = { date, hours ->
-                    eventTracker.editEvent(date, hours)
-                    refreshEventsAndSave()
+            AppDestinations.HOME -> {
+                // Fetch data from tracker reactively based on events list size
+                val exceedingWeeks = events.size.let { 
+                    eventTracker.getExceedingWeeks(LocalDate.now(), pastWeeksToCheck, weeklyThreshold)
+                }
+                
+                HomeScreen(
+                    events = events,
+                    exceedingWeeks = exceedingWeeks,
+                    weeklyThreshold = weeklyThreshold,
+                    onAddEvent = { date, hours ->
+                        eventTracker.addEvent(date, hours)
+                        refreshEventsAndSave()
+                    },
+                    onDeleteEvent = { date ->
+                        eventTracker.removeEvent(date)
+                        refreshEventsAndSave()
+                    },
+                    onEditEvent = { date, hours ->
+                        eventTracker.editEvent(date, hours)
+                        refreshEventsAndSave()
+                    }
+                )
+            }
+            AppDestinations.SETTINGS -> SettingsScreen(
+                initialWeeklyHourLimit = weeklyThreshold,
+                initialPastWeeksToCheck = pastWeeksToCheck,
+                onSaveSettings = { newThreshold, newPastWeeks ->
+                    weeklyThreshold = newThreshold
+                    pastWeeksToCheck = newPastWeeks
+                    val settings = AppSettings(newThreshold, newPastWeeks)
+                    settingsFile.writeText(gson.toJson(settings))
                 }
             )
-            AppDestinations.SETTINGS -> SettingsScreen()
         }
     }
 }
@@ -130,6 +172,8 @@ fun WorkingHoursTrackerApp() {
 @Composable
 fun HomeScreen(
     events: List<TrackedEvent>,
+    exceedingWeeks: List<Pair<LocalDate, Double>>,
+    weeklyThreshold: Double,
     onAddEvent: (LocalDate, Double) -> Unit,
     onDeleteEvent: (LocalDate) -> Unit,
     onEditEvent: (LocalDate, Double) -> Unit
@@ -137,6 +181,8 @@ fun HomeScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var hoursString by remember { mutableStateOf("") }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    val currentWeekMonday = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = selectedDate
@@ -178,6 +224,54 @@ fun HomeScreen(
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
+
+        if (exceedingWeeks.isNotEmpty()) {
+            Card(
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Add, // Using Add as a filler, ideally use Warning or similar
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Weekly limit exceeded!",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(Modifier.padding(vertical = 4.dp))
+                    exceedingWeeks.forEach { (monday, total) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                        ) {
+                            val label = if (monday == currentWeekMonday) "Current Week" else "Week of ${monday.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                text = "$total / $weeklyThreshold hrs",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         Card(
             modifier = Modifier
@@ -348,8 +442,13 @@ fun EventItem(
 }
 
 @Composable
-fun SettingsScreen() {
-    var hoursAlertString by remember { mutableStateOf("37.5") }
+fun SettingsScreen(
+    initialWeeklyHourLimit: Double,
+    initialPastWeeksToCheck: Int,
+    onSaveSettings: (Double, Int) -> Unit
+) {
+    var weeklyHourLimitString by remember { mutableStateOf(initialWeeklyHourLimit.toString()) }
+    var pastWeeksToCheckString by remember { mutableStateOf(initialPastWeeksToCheck.toString()) }
 
     Column(
         modifier = Modifier
@@ -362,21 +461,33 @@ fun SettingsScreen() {
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        Row {
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                TextField(
-                    value = hoursAlertString,
-                    onValueChange = { hoursAlertString = it },
-                    label = { Text("Weekly hour limit (Alert is shown when exceeded)") },
+                OutlinedTextField(
+                    value = weeklyHourLimitString,
+                    onValueChange = { weeklyHourLimitString = it },
+                    label = { Text("Weekly hour limit (Alert is displayed when exceeded)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.padding(vertical = 8.dp))
+                OutlinedTextField(
+                    value = pastWeeksToCheckString,
+                    onValueChange = { pastWeeksToCheckString = it },
+                    label = { Text("Number of past weeks to check for alerts") },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(
                     onClick = {
-                        // TODO: save to settings
-                        // val hours = hoursAlertString.toDoubleOrNull() ?: 0.0
-                    }
+                        val hours = weeklyHourLimitString.toDoubleOrNull() ?: getDefaultWeeklyThreshold()
+                        val weeks = pastWeeksToCheckString.toIntOrNull() ?: getDefaultPastWeeksToCheck()
+                        onSaveSettings(hours, weeks)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(top = 8.dp)
                 ) {
-                    Spacer(Modifier.width(8.dp))
                     Text("Save")
                 }
             }

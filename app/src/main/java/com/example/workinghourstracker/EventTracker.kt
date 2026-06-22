@@ -9,6 +9,7 @@ import com.google.gson.stream.JsonWriter
 import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 data class TrackedEvent(
     val date: LocalDate,
@@ -53,6 +54,32 @@ class EventTracker {
 
     fun getEvents(): Set<TrackedEvent> {
         return events
+    }
+
+    fun getExceedingWeeks(referenceDate: LocalDate, pastWeeksCount: Int, threshold: Double): List<Pair<LocalDate, Double>> {
+        val currentMonday = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val currentTotal = getWeeklyTotal(referenceDate)
+
+        val allWeeks = listOf(currentMonday to currentTotal) + getPastWeeklyTotals(referenceDate, pastWeeksCount)
+
+        return allWeeks.filter { it.second > threshold }
+    }
+
+    private fun getPastWeeklyTotals(referenceDate: LocalDate, count: Int): List<Pair<LocalDate, Double>> {
+        val currentMonday = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        return (1..count).map { weeksBack ->
+            val monday = currentMonday.minusWeeks(weeksBack.toLong())
+            monday to getWeeklyTotal(monday)
+        }
+    }
+
+    private fun getWeeklyTotal(referenceDate: LocalDate): Double {
+        val monday = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val sunday = referenceDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+
+        return events
+            .filter { !it.date.isBefore(monday) && !it.date.isAfter(sunday) }
+            .sumOf { it.trackedHours }
     }
 
     fun saveToFile(file: File) {

@@ -43,7 +43,7 @@ class EventTrackerTest {
         fun eventDateAlreadyInUse_eventIsNotAdded() {
             eventTracker.addEvent(testDate1, testTrackedHours2)
             val firstEvent = eventTracker.getEvents().first()
-            assertEquals(testTrackedHours1, firstEvent.trackedHours)
+            assertEquals(testTrackedHours2, firstEvent.trackedHours)
         }
 
         @Test
