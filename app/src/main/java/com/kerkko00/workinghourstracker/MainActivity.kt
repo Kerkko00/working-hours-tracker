@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -155,15 +156,9 @@ fun HomeScreen(
     }
 
     if (showErrorDialog) {
-        AlertDialog(
-            onDismissRequest = { showErrorDialog = false },
-            title = { Text("Invalid Input") },
-            text = { Text("Given hours needs to be given in correct format and has to be higher than 0.0 but lower than 24.0.") },
-            confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("OK")
-                }
-            }
+        ValidationErrorDialog(
+            message = "Given hours needs to be given in correct format and has to be higher than 0.0 but lower than 24.0.",
+            onDismiss = { showErrorDialog = false }
         )
     }
 
@@ -178,130 +173,173 @@ fun HomeScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        if (exceedingWeeks.isNotEmpty()) {
-            Card(
-                colors = androidx.compose.material3.CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Add, // Using Add as a filler, ideally use Warning or similar
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "Weekly limit exceeded!",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.padding(vertical = 4.dp))
-                    exceedingWeeks.forEach { (monday, total) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
-                        ) {
-                            val label = if (monday == currentWeekMonday) "Current Week" else "Week of ${monday.format(DateTimeFormatter.ofPattern("MMM d"))}"
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                            Text(
-                                text = "$total / $weeklyThreshold hrs",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
+        WeeklyLimitCard(
+            exceedingWeeks = exceedingWeeks,
+            currentWeekMonday = currentWeekMonday,
+            weeklyThreshold = weeklyThreshold
+        )
+
+        AddEntryForm(
+            selectedDate = selectedDate,
+            hoursString = hoursString,
+            onHoursChange = { hoursString = it },
+            onDatePickerClick = { showDatePicker = true },
+            onAddEntry = {
+                val hours = hoursString.toDoubleOrNull() ?: 0.0
+                if (hours > 24.0 || hours <= 0.0) {
+                    showErrorDialog = true
+                } else {
+                    onAddEvent(selectedDate, hours)
+                    hoursString = ""
                 }
             }
-        }
+        )
 
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        EventList(
+            events = events,
+            onDeleteEvent = onDeleteEvent,
+            onEditEvent = onEditEvent
+        )
+    }
+}
+
+@Composable
+fun WeeklyLimitCard(
+    exceedingWeeks: List<Pair<LocalDate, Double>>,
+    currentWeekMonday: LocalDate,
+    weeklyThreshold: Double
+) {
+    if (exceedingWeeks.isNotEmpty()) {
         Card(
+            colors = androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePicker = true }
-                ) {
-                    OutlinedTextField(
-                        value = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                        onValueChange = { },
-                        label = { Text("Date") },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        enabled = false // Disable interaction with the text field itself to ensure the Box click works
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Weekly limit(s) exceeded!",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                OutlinedTextField(
-                    value = hoursString,
-                    onValueChange = { input ->
-                        if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
-                            hoursString = input
-                        }
-                    },
-                    label = { Text("Hours") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                Button(
-                    onClick = {
-                        val hours = hoursString.toDoubleOrNull() ?: 0.0
-                        if (hours > 24.0 || hours <= 0.0) {
-                            showErrorDialog = true
-                        } else {
-                            onAddEvent(selectedDate, hours)
-                            hoursString = ""
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.End)
-                        .padding(top = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add Entry")
+                Spacer(Modifier.padding(vertical = 4.dp))
+                exceedingWeeks.forEach { (monday, total) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                    ) {
+                        val label = if (monday == currentWeekMonday) "Ongoing Week" else "Week starting from ${monday.format(DateTimeFormatter.ofPattern("MMM d"))}"
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = "$total / $weeklyThreshold hrs",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
+    }
+}
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        if (events.isEmpty()) {
+@Composable
+fun AddEntryForm(
+    selectedDate: LocalDate,
+    hoursString: String,
+    onHoursChange: (String) -> Unit,
+    onDatePickerClick: () -> Unit,
+    onAddEntry: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 32.dp),
-                contentAlignment = Alignment.TopCenter
+                    .fillMaxWidth()
+                    .clickable { onDatePickerClick() }
             ) {
-                Text(
-                    text = "No entries yet. Add your first one above!",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                OutlinedTextField(
+                    value = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                    onValueChange = { },
+                    label = { Text("Date") },
+                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = true,
+                    enabled = false // Disable interaction with the text field itself to ensure the Box click works
                 )
             }
-        } else {
-            LazyColumn {
-                items(events) { event ->
-                    EventItem(
-                        event = event,
-                        onDelete = { onDeleteEvent(event.date) },
-                        onEdit = { hours -> onEditEvent(event.date, hours) }
-                    )
-                }
+            OutlinedTextField(
+                value = hoursString,
+                onValueChange = { input ->
+                    if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
+                        onHoursChange(input)
+                    }
+                },
+                label = { Text("Hours") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
+            Button(
+                onClick = onAddEntry,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(top = 8.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Add Entry")
+            }
+        }
+    }
+}
+
+@Composable
+fun EventList(
+    events: List<TrackedEvent>,
+    onDeleteEvent: (LocalDate) -> Unit,
+    onEditEvent: (LocalDate, Double) -> Unit
+) {
+    if (events.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 32.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Text(
+                text = "No entries yet. Add your first one above!",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    } else {
+        LazyColumn {
+            items(events) { event ->
+                EventItem(
+                    event = event,
+                    onDelete = { onDeleteEvent(event.date) },
+                    onEdit = { hours -> onEditEvent(event.date, hours) }
+                )
             }
         }
     }
@@ -316,76 +354,36 @@ fun EventItem(
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showErrorDialog by remember { mutableStateOf(false) }
-    var editHoursString by remember { mutableStateOf(event.trackedHours.toString()) }
 
     if (showErrorDialog) {
-        AlertDialog(
-            onDismissRequest = { showErrorDialog = false },
-            title = { Text("Invalid Input") },
-            text = { Text("Given hours needs to be given in correct format and has to be higher than 0.0 but lower than 24.0.") },
-            confirmButton = {
-                TextButton(onClick = { showErrorDialog = false }) {
-                    Text("OK")
-                }
-            }
+        ValidationErrorDialog(
+            message = "Given hours needs to be given in correct format and has to be higher than 0.0 but lower than 24.0.",
+            onDismiss = { showErrorDialog = false }
         )
     }
 
     if (showEditDialog) {
-        AlertDialog(
-            onDismissRequest = { showEditDialog = false },
-            title = { Text("Edit Hours") },
-            text = {
-                OutlinedTextField(
-                    value = editHoursString,
-                    onValueChange = { input ->
-                        if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
-                            editHoursString = input
-                        }
-                    },
-                    label = { Text("Hours") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val hours = editHoursString.toDoubleOrNull() ?: event.trackedHours
-                    if (hours > 24.0 || hours <= 0.0) {
-                        showErrorDialog = true
-                    } else {
-                        onEdit(hours)
-                        showEditDialog = false
-                    }
-                }) {
-                    Text("Save")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
-                    Text("Cancel")
+        EditHoursDialog(
+            initialHours = event.trackedHours,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { hours ->
+                if (hours > 24.0 || hours <= 0.0) {
+                    showErrorDialog = true
+                } else {
+                    onEdit(hours)
+                    showEditDialog = false
                 }
             }
         )
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Confirm Delete") },
-            text = { Text("Are you sure you want to delete the entry for ${event.date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete()
-                    showDeleteDialog = false
-                }) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
+        ConfirmDeleteDialog(
+            date = event.date,
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                onDelete()
+                showDeleteDialog = false
             }
         )
     }
@@ -424,6 +422,85 @@ fun EventItem(
             }
         }
     }
+}
+
+@Composable
+fun EditHoursDialog(
+    initialHours: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var editHoursString by remember { mutableStateOf(initialHours.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Hours") },
+        text = {
+            OutlinedTextField(
+                value = editHoursString,
+                onValueChange = { input ->
+                    if (input.isEmpty() || input.toDoubleOrNull() != null || (input.count { it == '.' } <= 1 && input.all { it.isDigit() || it == '.' })) {
+                        editHoursString = input
+                    }
+                },
+                label = { Text("Hours") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(editHoursString.toDoubleOrNull() ?: initialHours)
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ConfirmDeleteDialog(
+    date: LocalDate,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Delete") },
+        text = { Text("Are you sure you want to delete the entry for ${date.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}?") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun ValidationErrorDialog(
+    message: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Invalid Input") },
+        text = { Text(message) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
+            }
+        }
+    )
 }
 
 @Composable
