@@ -65,7 +65,7 @@ class EventTracker {
         return allWeeks.filter { it.second > threshold }
     }
 
-    private fun getPastWeeklyTotals(referenceDate: LocalDate, count: Int): List<Pair<LocalDate, Double>> {
+    fun getPastWeeklyTotals(referenceDate: LocalDate, count: Int): List<Pair<LocalDate, Double>> {
         val currentMonday = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         return (1..count).map { weeksBack ->
             val monday = currentMonday.minusWeeks(weeksBack.toLong())
@@ -73,7 +73,7 @@ class EventTracker {
         }
     }
 
-    private fun getWeeklyTotal(referenceDate: LocalDate): Double {
+    fun getWeeklyTotal(referenceDate: LocalDate): Double {
         val monday = referenceDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val sunday = referenceDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
 

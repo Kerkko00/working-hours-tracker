@@ -34,25 +34,19 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kerkko00.workinghourstracker.ui.theme.WorkingHoursTrackerTheme
-import com.google.gson.Gson
-import java.io.File
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -74,44 +68,8 @@ class MainActivity : ComponentActivity() {
 
 @PreviewScreenSizes
 @Composable
-fun WorkingHoursTrackerApp() {
-    val context = LocalContext.current
-    val dataFile = remember { File(context.filesDir, "events.json") }
-    val settingsFile = remember { File(context.filesDir, "settings.json") }
+fun WorkingHoursTrackerApp(viewModel: MainViewModel = viewModel()) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
-    val eventTracker = remember { EventTracker() }
-    val events = remember { mutableStateListOf<TrackedEvent>() }
-    var weeklyThreshold by remember { mutableDoubleStateOf(getDefaultWeeklyThreshold()) }
-    var pastWeeksToCheck by remember { mutableIntStateOf(getDefaultPastWeeksToCheck()) }
-    val gson = remember { Gson() }
-
-    // Helper to refresh tracker events and save to file
-    fun refreshEventsAndSave() {
-        events.clear()
-        events.addAll(eventTracker.getEvents().sortedByDescending { it.date })
-        eventTracker.saveToFile(dataFile)
-    }
-
-    LaunchedEffect(Unit) {
-        // Load events
-        eventTracker.loadFromFile(dataFile)
-        events.clear()
-        events.addAll(eventTracker.getEvents().sortedByDescending { it.date })
-
-        // Load settings
-        if (settingsFile.exists()) {
-            val content = settingsFile.readText()
-            try {
-                val settings = gson.fromJson(content, AppSettings::class.java)
-                weeklyThreshold = settings.weeklyThreshold
-                pastWeeksToCheck = settings.pastWeeksToCheck
-            } catch (e: Exception) {
-                println("Error loading settings: $e")
-                weeklyThreshold = getDefaultWeeklyThreshold()
-                pastWeeksToCheck = getDefaultPastWeeksToCheck()
-            }
-        }
-    }
 
     NavigationSuiteScaffold(
         navigationSuiteItems = {
@@ -131,39 +89,18 @@ fun WorkingHoursTrackerApp() {
         }
     ) {
         when (currentDestination) {
-            AppDestinations.HOME -> {
-                // Fetch data from tracker reactively based on events list size
-                val exceedingWeeks = events.size.let { 
-                    eventTracker.getExceedingWeeks(LocalDate.now(), pastWeeksToCheck, weeklyThreshold)
-                }
-                
-                HomeScreen(
-                    events = events,
-                    exceedingWeeks = exceedingWeeks,
-                    weeklyThreshold = weeklyThreshold,
-                    onAddEvent = { date, hours ->
-                        eventTracker.addEvent(date, hours)
-                        refreshEventsAndSave()
-                    },
-                    onDeleteEvent = { date ->
-                        eventTracker.removeEvent(date)
-                        refreshEventsAndSave()
-                    },
-                    onEditEvent = { date, hours ->
-                        eventTracker.editEvent(date, hours)
-                        refreshEventsAndSave()
-                    }
-                )
-            }
+            AppDestinations.HOME -> HomeScreen(
+                events = viewModel.events,
+                exceedingWeeks = viewModel.exceedingWeeks,
+                weeklyThreshold = viewModel.weeklyThreshold,
+                onAddEvent = viewModel::addEvent,
+                onDeleteEvent = viewModel::removeEvent,
+                onEditEvent = viewModel::editEvent
+            )
             AppDestinations.SETTINGS -> SettingsScreen(
-                initialWeeklyHourLimit = weeklyThreshold,
-                initialPastWeeksToCheck = pastWeeksToCheck,
-                onSaveSettings = { newThreshold, newPastWeeks ->
-                    weeklyThreshold = newThreshold
-                    pastWeeksToCheck = newPastWeeks
-                    val settings = AppSettings(newThreshold, newPastWeeks)
-                    settingsFile.writeText(gson.toJson(settings))
-                }
+                initialWeeklyHourLimit = viewModel.weeklyThreshold,
+                initialPastWeeksToCheck = viewModel.pastWeeksToCheck,
+                onSaveSettings = viewModel::updateSettings
             )
         }
     }
