@@ -35,6 +35,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,10 +44,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import com.example.workinghourstracker.ui.theme.WorkingHoursTrackerTheme
+import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -67,12 +70,21 @@ class MainActivity : ComponentActivity() {
 @PreviewScreenSizes
 @Composable
 fun WorkingHoursTrackerApp() {
+    val context = LocalContext.current
+    val dataFile = remember { File(context.filesDir, "events.json") }
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     val eventTracker = remember { EventTracker() }
     val events = remember { mutableStateListOf<TrackedEvent>() }
 
-    // Helper to refresh tracker events
-    fun refreshEvents() {
+    // Helper to refresh tracker events and save to file
+    fun refreshEventsAndSave() {
+        events.clear()
+        events.addAll(eventTracker.getEvents().sortedByDescending { it.date })
+        eventTracker.saveToFile(dataFile)
+    }
+
+    LaunchedEffect(Unit) {
+        eventTracker.loadFromFile(dataFile)
         events.clear()
         events.addAll(eventTracker.getEvents().sortedByDescending { it.date })
     }
@@ -99,15 +111,15 @@ fun WorkingHoursTrackerApp() {
                 events = events,
                 onAddEvent = { date, hours ->
                     eventTracker.addEvent(date, hours)
-                    refreshEvents()
+                    refreshEventsAndSave()
                 },
                 onDeleteEvent = { date ->
                     eventTracker.removeEvent(date)
-                    refreshEvents()
+                    refreshEventsAndSave()
                 },
                 onEditEvent = { date, hours ->
                     eventTracker.editEvent(date, hours)
-                    refreshEvents()
+                    refreshEventsAndSave()
                 }
             )
             AppDestinations.SETTINGS -> SettingsScreen()
