@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,13 +19,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -38,7 +43,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import androidx.compose.ui.unit.dp
 import com.example.workinghourstracker.ui.theme.WorkingHoursTrackerTheme
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
@@ -101,8 +108,39 @@ fun HomeScreen(
     events: List<CalendarEvent>,
     onAddEvent: (LocalDate, Double) -> Unit
 ) {
-    var dateString by remember { mutableStateOf(LocalDate.now().toString()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var hoursString by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = selectedDate
+            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        selectedDate = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneId.systemDefault())
+                            .toLocalDate()
+                    }
+                    showDatePicker = false
+                }) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -121,12 +159,20 @@ fun HomeScreen(
                 .padding(bottom = 16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                OutlinedTextField(
-                    value = dateString,
-                    onValueChange = { dateString = it },
-                    label = { Text("Date (YYYY-MM-DD)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showDatePicker = true }
+                ) {
+                    OutlinedTextField(
+                        value = selectedDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                        onValueChange = { },
+                        label = { Text("Date") },
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        enabled = false // Disable interaction with the text field itself to ensure the Box click works
+                    )
+                }
                 OutlinedTextField(
                     value = hoursString,
                     onValueChange = { hoursString = it },
@@ -135,9 +181,8 @@ fun HomeScreen(
                 )
                 Button(
                     onClick = {
-                        val date = LocalDate.parse(dateString)
                         val hours = hoursString.toDoubleOrNull() ?: 0.0
-                        onAddEvent(date, hours)
+                        onAddEvent(selectedDate, hours)
                         hoursString = ""
                     },
                     modifier = Modifier
